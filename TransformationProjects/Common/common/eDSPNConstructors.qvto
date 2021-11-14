@@ -1,0 +1,110 @@
+import eDSPNHelpers;
+
+modeltype EDSPN "strict" uses eDSPN("http://pdv.cs.tu-berlin.de/TimeNET/schema/eDSPN");
+
+library eDSPNConstructors(){
+
+/** Constructors **/
+constructor Label::Label(given_text : String) {
+	text := given_text;
+	type:= EDSPN::Type::text;
+	id := safeString(given_text) + "_id";
+	graphics := new Graphics(false);
+	log("Created Label called: " + given_text);
+}
+
+
+constructor Place::Place(given_label : String, initial_marking : Integer) {
+	id := safeString(given_label) + "_place_id";
+	type := EDSPN::Type::node;
+	label := new Label(given_label);
+	initialMarking := initial_marking;
+	graphics := new Graphics(true);
+	log("Created Place called: " + given_label);
+}
+
+constructor Graphics::Graphics(create_orientation:Boolean){
+	x := 30;
+	y := 30;
+	if(create_orientation){
+	orientation := 0;
+	};
+	log("Created Graphics");
+}
+
+constructor Inscription::Inscription(){
+	id := "anonymous_inscription_id";
+	text := "1";
+	graphics := new Graphics(false);
+	type:=eDSPN::Type::inscriptionText;
+	log("Created Inscription");
+	//graphics := g.clone();
+}
+
+constructor Inscription::Inscription(g : Graphics){
+	var inscr := new Inscription();
+	id := inscr.id;
+	text := inscr.text;
+	type:= inscr.type;
+	graphics := g.clone();
+	log("Created Inscription with given graphics");
+}
+
+
+constructor Arc::Arc(){
+	id := "arc_id";
+
+	inscription := new Inscription();
+	type := eDSPN::Type::connector;
+	log("Created Arc");
+	//fromNode := t.id;
+	//toNode := p.id;
+}
+
+constructor ImmediateTransition::ImmediateTransition(){
+	id := "it_id";
+	priority := "1";
+	enablingFunction := "";
+	weight := "1";
+	type := type := eDSPN::Type::node;
+	graphics := new Graphics(true);
+	label := new Label("it");
+	log("Created Immediate Transition");
+}
+
+constructor ImmediateTransition::ImmediateTransition(name:String){
+	id := safeString(name) + "_imm_tran_id";
+	priority := "1";
+	enablingFunction := "";
+	weight := "1";
+	type := type := eDSPN::Type::node;
+	graphics := new Graphics(true);
+	label := new Label(name);
+	log("Created Immediate Transition with id: "+ id);
+}
+
+constructor DeterministicTransition::DeterministicTransition(given_label : String){
+	delay := "1.0";
+	label := new Label(given_label);
+	graphics := new Graphics(true);
+	DTSPNpriority := "1"; //DTSPNpriority in Timenet generated xml file.
+	delay := "1.0"; 
+	id := safeString(given_label) + "_det_trans_id";
+    preemptionPolicy := eDSPN::PreemptionPolicy::PRD;
+    type := eDSPN::Type::node;
+    log("Created Deterministic transition called: " + given_label);
+}
+
+constructor ExponentialTransition::ExponentialTransition(given_label : String){
+	delay := "1.0";
+	label := new Label(given_label);
+	graphics := new Graphics(true);
+	DTSPNpriority := "1"; //DTSPNpriority in Timenet generated xml file.
+	delay := "1.0"; 
+	id := safeString(given_label) + "_exp_trans_id";
+    preemptionPolicy := eDSPN::PreemptionPolicy::PRD;
+    serverType := eDSPN::ServerType::ExclusiveServer;
+    type := eDSPN::Type::node;
+    log("Created Exponential transition called: " + given_label);
+}
+}

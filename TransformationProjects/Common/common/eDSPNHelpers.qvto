@@ -1,0 +1,26 @@
+modeltype EDSPN "strict" uses eDSPN("http://pdv.cs.tu-berlin.de/TimeNET/schema/eDSPN");
+modeltype UML "strict" uses uml("http://www.eclipse.org/uml2/5.0.0/UML");
+
+library eDSPNHelpers(){
+
+	property randomSequence:Sequence(Integer) = Sequence{1,2,3,4,5,6,7,8,9};
+	//random: randomSequence->any(self < 10);
+	
+	/** Helpers **/
+	//A helper is an operation that performs a computation on one or more source objects and provides a result. It is illegal to create or update object instances except for pre-defined types like sets, tuples, and for intermediate properties.
+	
+	helper safeString(s:String) : String{
+	assert warning (not s.oclIsUndefined()) with log("Safestring received a null parameter, one element in the model does not have a name., using a placeholder");
+	if(s.oclIsUndefined()){
+		return "placeholder";
+	}endif;
+		return s.replaceAll(" ", "_").replaceAll("\\.","_");
+	}
+
+	helper Place::someHelper1() : Set(String) {
+		//if (self.name = 'A') then {
+		return Set {'B'};
+		//} endif;
+		//return Set {self.name};
+	}
+}

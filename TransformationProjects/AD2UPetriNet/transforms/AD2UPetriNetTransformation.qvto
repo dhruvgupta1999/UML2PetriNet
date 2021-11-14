@@ -1,0 +1,253 @@
+
+//"strict" or "effective" (default). Strict only allows instances which conform exactly to the metamodel.
+//a where {self.objectsOfType(Activity)->size = 1}; clause is also possible
+import eDSPNConstructors;
+import eDSPNHelpers;
+import eDSPNQueries;
+import AD2PetriNetQueries;
+import CommonADMappings;
+
+
+modeltype UML "strict" uses uml("http://www.eclipse.org/uml2/5.0.0/UML");
+modeltype EDSPN "strict" uses eDSPN("http://pdv.cs.tu-berlin.de/TimeNET/schema/eDSPN");
+
+transformation AS2UPetriNetTransformation(in uml:UML, out net:EDSPN) extends library eDSPNConstructors(), eDSPNHelpers(), eDSPNQueries(), CommonADMappings();
+
+main( ){
+	log("Main: AS2PetriNet");
+	assert fatal (uml.objects()->size() > 1) with log ('The provided UML model is empty');
+	assert fatal (uml.objectsOfKind(Model)->notEmpty()) with log ('Expecting at least one Model in the provided UML model.');
+	assert fatal (uml.objectsOfKind(Activity)->notEmpty()) with log ('Expecting at least one activity in the UML model.');
+	assert warning (uml.objectsOfKind(Activity)->size() <= 1) with log ('This models cointains more than one activity. Only the first one will be converted.', uml.objectsOfKind(Activity)); //kinds: warning, error, fatal
+	uml.rootObjects()[Model]->asOrderedSet()->sortedBy(name)->map Model2AD(); //[Type] filter all elements of type Type from the set.
+	log("Main: Transformation completed.");
+}
+
+/** Mapping **/
+//Can have a when condition:
+//when {self.name <> null} { -> the first mapping with a true clause is executed. If all false, null is returned.
+	
+//Consist of 3 sections: init, population, end. Everything outside: Population.
+
+/** Abstract mappings **/
+//mapping inherits Type::mapping_Name{ -> the inherited part is executed before the population section
+//mapping merges Type::mapping_Name{ -> the merged part is executed at the end of the Population section (after the end)
+	
+
+
+
+
+mapping Model::Model2AD() : Net{
+	init{
+		if (not self.getOwnedMembers()[Activity]->asOrderedSet()->first().oclIsUndefined()){
+			result := self.getOwnedMembers()[Activity]->asOrderedSet()->first().map activityToSCPN(); //Maps only the first one. use "->map" instead of ".map" to map all of them.
+		}else
+		{
+			log("Main activity not found, looking inside classess..");
+			var act : Activity := null;
+			self.getOwnedMembers()[Class]->forEach(cl){
+				log ("Class: "+cl.name);
+				if(act.oclIsUndefined()){
+					act := cl.getOwnedMembers()[Activity]->asOrderedSet()->first();
+					log("Activity: ", act);
+				}else{
+				log("skipped");
+				};
+			};
+			result := act.map activityToSCPN();
+		};
+		assert fatal (not result.oclIsUndefined()) with log ("Cannot find one activity to transform."); 
+	}
+	//Set the net ID (required)
+	if(self.name){
+ 		id := safeString(self.name) + "_id";
+ 	}else
+ 	{
+ 		id := "0";
+ 	}endif;
+ 
+}
+
+mapping Activity::activityToSCPN() : EDSPNNet{
+
+	id := safeString(self.name);
+	gridActive := true;
+	netclass := "eDSPN";
+	sharpEdges := false;
+    
+    //Transform Initial Nodes
+    log("== Initial Nodes ==");
+    place += self.ownedElement[InitialNode]->asOrderedSet()->sortedBy(name)->map initialNodeTransform();
+    
+    //Transform ActivityParameterNodes
+	log("== Activity Parameter Nodes ==");
+    place +=  self.ownedElement[ActivityParameterNode]->asOrderedSet()->sortedBy(name)->map activityParameterNodeTransform();
+    
+    //Transform Flow Final Nodes
+    log("== Flow Final Nodes ==");
+    place += self.ownedElement[FlowFinalNode]->asOrderedSet()->sortedBy(name)->map flowFinalNodeTransform();
+    
+    //Transform Central Buffer Nodes
+    log("== Central Buffer Node ==");
+    place += self.ownedElement[CentralBufferNode]->asOrderedSet()->sortedBy(name)->map centralBufferNodeTransform();
+    
+    //Transform Activity Final Nodes
+    log("== Activity Final Nodes ==");
+    place += self.ownedElement[ActivityFinalNode]->asOrderedSet()->sortedBy(name)->map activityFinalNodeTransform();
+    
+    //Transform Fork Nodes
+	 log("== Fork Nodes ==");
+    exponentialTransition += self.ownedElement[ForkNode]->asOrderedSet()->sortedBy(name)->map forkNodeTransform();
+    
+    //Transform Join Nodes
+	 log("== Join Nodes ==");	
+    immediateTransition += self.ownedElement[JoinNode]->asOrderedSet()->sortedBy(name)->map joinNodeTransform();
+    
+    //Transform Decision nodes 
+    log("== Decision Nodes ==");
+    var decisionNodes := self.ownedElement[DecisionNode]->asOrderedSet()->sortedBy(name)->map decisionNodeTransform(); 
+    place += decisionNodes.p;
+    immediateTransition += decisionNodes.trans;
+    arc += decisionNodes.arcs;
+    
+    //Transform Merge nodes
+    log("== Merge Nodes ==");
+    place += self.ownedElement[MergeNode]->asOrderedSet()->sortedBy(name)->map mergeNodeTransform(); 
+    
+    //Transform Actions and pins
+    log("== Action ==");
+    var temp = self.ownedElement[Action]->asOrderedSet()->sortedBy(name)->map actionTransform();
+    exponentialTransition += temp.d;
+    place += temp.pl;
+    arc += temp.arcs;
+    immediateTransition += temp.im;
+    	
+	//Generate either incoming edges or only outgoing edges, otherwise you get each edge twice.
+    log("== Edges ==");
+    //Transform all edges who need an extra transition (a place to a place) 
+	var res := self.allOwnedElements()[ActivityNode].outgoing->select(e:ActivityEdge|(e.source.isAPlaceWhenSource() and e.target.isAPlaceWhenTarget()))->map outgoingEdgesExtraTransition(); 
+	assert fatal (not res->oclIsInvalid()) with log("One or more edges don't have a source or target set.");
+
+	arc += res.arcs;
+	immediateTransition += res.iTr;
+	
+	var extraPlace := self.allOwnedElements()[ActivityNode].outgoing->select(e:ActivityEdge|(not e.source.isAPlaceWhenSource() and not e.target.isAPlaceWhenTarget()))->map outgoingEdgesExtraPlace(); 
+	arc += extraPlace.arcs;
+	place += extraPlace.pl;
+	
+	//Transform all simple edges (a place to a transition or vice-versa)
+	var arcs := self.allOwnedElements()[ActivityNode].outgoing->select(e:ActivityEdge|(e.source.isAPlaceWhenSource() and not e.target.isAPlaceWhenTarget()))->map outgoingEdgesSimple(); 
+	arc += arcs;
+	
+	arcs := self.allOwnedElements()[ActivityNode].outgoing->select(e:ActivityEdge|(not e.source.isAPlaceWhenSource() and e.target.isAPlaceWhenTarget()))->map outgoingEdgesSimple(); 
+	arc += arcs;
+}
+
+mapping ForkNode::forkNodeTransform() : ExponentialTransition{
+	init{
+		result := new ExponentialTransition(self.name);
+	}
+    	log("-- Transformed: Fork node: created.");
+}
+
+
+mapping ActivityEdge::outgoingEdgesExtraTransition(): arcs:List(Arc), iTr : ImmediateTransition{
+	init{
+				
+		log("Creating a Petri Net arc with an extra transition");
+			
+	
+		arcs := List{};
+		iTr := new ImmediateTransition();
+	
+		var leftArc := new Arc();
+		var rightArc := new Arc();
+
+		var p_source : EDSPN::Place  := self.source.resolvePlaceAsSource();
+		var p_target : EDSPN::Place := self.target.resolvePlaceAsTarget();
+		
+		
+		assert fatal(not p_source.oclIsUndefined() and not p_target.oclIsUndefined()) with log("Cannot resolve places for the source and target elements of ", self);
+		
+		log ("p_source and p_target need a fake transition", self);
+		iTr.id := "fake_"+self.source.name + self.target.name + "_transition_id";
+		iTr.label.text := iTr.id;
+		
+		leftArc.fromNode := p_source.id;
+		leftArc.toNode := iTr.id;
+		
+		leftArc.id :=  safeString(self.source.name) + "_to_" + safeString(self.target.name) + "_left_arc_id";
+		
+		
+		rightArc.fromNode := iTr.id;
+		rightArc.toNode := p_target.id;
+		rightArc.id := safeString(self.source.name) + "_to_" + safeString(self.target.name) + "_right_arc_id";
+		
+		arcs += leftArc;
+		arcs += rightArc;
+		
+		}
+		log("Transformed: Arc with extra Transition");	
+}
+
+mapping ActivityEdge::outgoingEdgesExtraPlace(): arcs:List(Arc), pl:Place{
+	init{
+		arcs := List{};
+		pl := null;
+	
+		var leftArc := new Arc();
+		var rightArc := new Arc();
+		
+		log("Creating a Petri Net arc with an extra place");	
+			
+	  	var t_source := self.source.resolveTransitionAsSource(self);
+		var t_target : EDSPN::Transition := self.target.resolveTransitionAsTarget();
+	
+		assert fatal(not t_source.oclIsUndefined()) with log("Cannot resolve source transition for the element", self.source);
+		assert fatal(not t_target.oclIsUndefined()) with log("Cannot resolve target transition for the element", self.target);
+	
+		pl := new Place("f_"+self.source.name+"_to_"+self.target.name, 0);
+		pl.id := "fake_"+self.source.name + self.target.name + "_place_id";
+		//pl.label.text := pl.id; Done automatically by the constructor
+	
+		leftArc.fromNode := t_source.id;
+		leftArc.toNode := pl.id;
+		leftArc.id := safeString(self.source.name) + "_to_" + safeString(self.target.name) + "_left_arc_id";
+		
+		
+		rightArc.fromNode := pl.id;
+		rightArc.toNode := t_target.id;
+		rightArc.id := safeString(self.source.name) + "_to_" + safeString(self.target.name) + "_right_arc_id";
+		
+		arcs += leftArc;
+		arcs += rightArc;
+	}
+	log("Transformed: Arc with extra Place");
+}
+
+mapping ActivityEdge::outgoingEdgesSimple(): Arc{
+	init{
+	result := new Arc();
+	}	
+	log("Creating a simple Petri Net arc");
+	result.id := safeString(self.source.name) + "_to_" + safeString(self.target.name) + "_arc_id";
+	
+	if(self.source.isAPlaceWhenSource()){ //The source is a place, the target is a transition
+		var p_source : EDSPN::Place := self.source.resolvePlaceAsSource();
+		var t_target : EDSPN::Transition := self.target.resolveTransitionAsTarget();
+		assert fatal (not p_source.oclIsUndefined()) with log("Simple edge: cannot resolve source place.");
+		assert fatal (not t_target.oclIsUndefined()) with log("Simple edge: cannot resolve target transition.");
+		result.fromNode := p_source.id;
+		result.toNode := t_target.id;
+	}
+	else{
+		//The source is a Transition, target is a place
+		var t_source : EDSPN::Transition := self.source.resolveTransitionAsSource(self);
+		var p_target : EDSPN::Place := self.target.resolvePlaceAsTarget();
+		assert fatal (not t_source.oclIsUndefined()) with log("Simple edge: cannot resolve source target.");
+		assert fatal (not p_target.oclIsUndefined()) with log("Simple edge: cannot resolve target place.");
+		result.fromNode := t_source.id;
+		result.toNode := p_target.id;
+	};	
+	log("Transformed: Simple Arc");
+}

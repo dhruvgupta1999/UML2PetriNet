@@ -1,0 +1,180 @@
+import eDSPNConstructors;
+import eDSPNHelpers;
+import eDSPNQueries;
+
+
+modeltype UML "strict" uses uml("http://www.eclipse.org/uml2/5.0.0/UML");
+modeltype EDSPN "strict" uses eDSPN("http://pdv.cs.tu-berlin.de/TimeNET/schema/eDSPN");
+
+transformation CommonADMappings(in uml:UML, out net:EDSPN) extends library eDSPNConstructors(), eDSPNHelpers(), eDSPNQueries();
+
+main( ){
+	log("CommonADMappings, does nothing, it only provide methods.");
+}
+
+mapping ActivityParameterNode::activityParameterNodeTransform(): Place{
+	init{
+		assert fatal(not self.parameter.oclIsUndefined()) with log("The Activity parameter node does not have any parameter set", self);
+		if(self.isInputPar())
+		{
+			result := new Place(self.name, 1);
+		}
+		else
+		{
+			result := new Place(self.name, 0);
+		}
+		endif;
+	}
+	log("-- Transformed: Activity parameter node");
+}
+
+
+mapping JoinNode::joinNodeTransform() : ImmediateTransition{
+	init{
+		result := new ImmediateTransition(self.name);
+	}
+   	log("-- Transformed: Join node");
+}
+
+mapping FlowFinalNode::flowFinalNodeTransform(): Place{
+	init{
+			result := new Place(self.name, 0);
+	}
+	log("-- Transformed: Flow final node");	
+}
+
+mapping ActivityFinalNode::activityFinalNodeTransform(): Place{
+	init{
+			result := new Place(self.name, 0);
+	}
+	log("-- Transformed: Flow final node");	
+}
+
+
+mapping InitialNode::initialNodeTransform(): Place{
+	init{
+			result := new Place(self.name, 1);
+	}
+	log("-- Transformed: Initial node");	
+}
+
+
+mapping MergeNode::mergeNodeTransform(): Place{
+	init{
+		result := new Place(self.name, 0);
+	}
+	log("-- Transformed: Merge node");	
+}
+
+mapping CentralBufferNode::centralBufferNodeTransform(): Place{
+	init{
+		result := new Place(self.name + "_cbn", 0);
+	}
+	log("-- Transformed: Central buffer node");	
+}
+
+mapping Pin::pinTransform(): p:Place, a:Arc{
+	init{
+		if(self.oclIsKindOf(InputPin)){
+			p := new Place(safeString(self.name) + "_" + safeString(self.owner.oclAsType(Action).name) + "_in", 0);
+		}else{
+			p := new Place(safeString(self.name) + "_" + safeString(self.owner.oclAsType(Action).name) + "_out", 0);
+		};
+		a := new Arc();
+	}
+	log(self.toString());
+	if(self.oclIsKindOf(InputPin)){
+		//Add current action (owner)
+		a.fromNode := p.id;
+		a.id := "input_pin_" + safeString(self.name) + "_to_action_arc_id";
+	}else if(self.oclIsKindOf(OutputPin)){
+		a.toNode := p.id;
+		a.id :="action_to_output_pin_" + safeString(self.name) + "_arc_id";
+	}else{
+		assert warning(true) with log("Undetected pin type!", self);
+	}endif;
+	log("-- Transformed: Pin");
+}
+
+mapping DecisionNode::decisionNodeTransform(): p : Place, trans : List(ImmediateTransition), arcs : List(Arc){
+	init{
+		p := new Place(safeString(self.name), 0);
+	}
+	var i := 1;
+	self.outgoing->asOrderedSet()->sortedBy(target.name)->forEach(e){
+		var t : ImmediateTransition;
+		var arc := new Arc();
+		arc.fromNode := p.id;
+		if(e.name.oclIsUndefined()){
+			t := new ImmediateTransition(self.name + "arc_" + i.toString() );
+		}
+		else{
+			t := new ImmediateTransition(e.name);
+		};
+		trans->add(t);
+		arc.toNode := t.id;
+		arc.id := p.id+"_to_"+t.id+"_arc_id";
+		arcs->add(arc);
+		i:= i + 1;
+	};
+	log("-- Transformed: Decision node");	
+}
+
+mapping Action::actionTransform() : d : ExponentialTransition, im: ImmediateTransition,  pl: List(Place), arcs: List(Arc){
+	init{
+		assert fatal (not self.name.oclIsUndefined()) with log ('All actions must be named.'); //kinds: warning, error, fatal
+		d := new ExponentialTransition(safeString(self.name)+"_end");
+		im := new ImmediateTransition(safeString(self.name)+"_start");
+	    log("= Pin: =", self.ownedElement[Pin]->size());
+		var temp = self.ownedElement[Pin]->asOrderedSet()->sortedBy(name)->map pinTransform();
+		pl := temp.p->asList();
+		arcs := temp.a->asList();
+	}
+	arcs->forEach(a){
+		//TODO NAME STATT a. ...ID; A helper is probably needed
+		if(a.toNode.oclIsUndefined()){
+			a.toNode := im.id;
+			a.id := a.fromNode + "_to_" + safeString(self.name);
+		}else
+		{
+			a.fromNode := d.id;
+			a.id := safeString(self.name) + "_to_" + a.toNode;
+		};
+	};
+	
+	var semL : EDSPN::Arc := new Arc(); //From the semaphore to the first transition (the immediate one)
+	var semR : EDSPN::Arc := new Arc(); //From the ending transition to the semaphore
+	
+	var actionArcL : EDSPN::Arc := new Arc(); //From the first transition (the immediate one) to the action
+	var actionArcR : EDSPN::Arc := new Arc(); //From the action to the ending transition
+	
+	actionArcL.id := safeString(self.name)+"_arcL";
+	actionArcR.id := safeString(self.name)+"_arcR";
+	
+	semL.id := safeString(self.name) + "_semL";
+	semR.id := safeString(self.name) + "_semR";
+	
+	var semaphore:Place := new Place(safeString(self.name)+"_sem", 1);
+	var action:Place := new Place(safeString(self.name), 0);
+	pl += semaphore;
+	pl += action;
+	
+	actionArcL.fromNode := im.id;
+	actionArcL.toNode := action.id;
+	
+	actionArcR.fromNode := action.id;
+	actionArcR.toNode := d.id;
+	
+	semL.fromNode := semaphore.id;
+	semL.toNode := im.id;
+	
+	semR.fromNode := d.id;
+	semR.toNode := semaphore.id;
+	
+	arcs += actionArcL;
+	arcs += actionArcR;
+	arcs += semL;
+	arcs += semR;
+	
+	log("-- Transformed: Action");
+}

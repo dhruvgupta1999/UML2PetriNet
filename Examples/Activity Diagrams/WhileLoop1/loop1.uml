@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<uml:Model xmi:version="20131001" xmlns:xmi="http://www.omg.org/spec/XMI/20131001" xmlns:uml="http://www.eclipse.org/uml2/5.0.0/UML" xmi:id="_Jx7boBJ4Eemcuqnt9noGMA" name="NewModel">
+  <packagedElement xmi:type="uml:Activity" xmi:id="_RrFwQBJ4Eemcuqnt9noGMA" name="Activity1" node="_UKa5cBJ4Eemcuqnt9noGMA _WJf1QBJ4Eemcuqnt9noGMA _YAGKgBJ4Eemcuqnt9noGMA _Z9YWkBJ4Eemcuqnt9noGMA">
+    <edge xmi:type="uml:ControlFlow" xmi:id="_blOeIBJ4Eemcuqnt9noGMA" target="_WJf1QBJ4Eemcuqnt9noGMA" source="_UKa5cBJ4Eemcuqnt9noGMA">
+      <guard xmi:type="uml:LiteralBoolean" xmi:id="_blPFMBJ4Eemcuqnt9noGMA" name="Initial1_To_OpaqueAction1_guard" value="true"/>
+      <weight xmi:type="uml:LiteralInteger" xmi:id="_blQTUBJ4Eemcuqnt9noGMA" name="Initial1_To_OpaqueAction1_weight"/>
+    </edge>
+    <edge xmi:type="uml:ControlFlow" xmi:id="_cJwHgBJ4Eemcuqnt9noGMA" target="_YAGKgBJ4Eemcuqnt9noGMA" source="_WJf1QBJ4Eemcuqnt9noGMA">
+      <guard xmi:type="uml:LiteralBoolean" xmi:id="_cJwukBJ4Eemcuqnt9noGMA" name="OpaqueAction1_To_Decision1_guard" value="true"/>
+      <weight xmi:type="uml:LiteralInteger" xmi:id="_cJxVoBJ4Eemcuqnt9noGMA" name="OpaqueAction1_To_Decision1_weight"/>
+    </edge>
+    <edge xmi:type="uml:ControlFlow" xmi:id="_dlRDQBJ4Eemcuqnt9noGMA" target="_Z9YWkBJ4Eemcuqnt9noGMA" source="_YAGKgBJ4Eemcuqnt9noGMA">
+      <guard xmi:type="uml:LiteralBoolean" xmi:id="_dlRqUBJ4Eemcuqnt9noGMA" name="Decision1_To_ActivityFinal1_guard" value="true"/>
+      <weight xmi:type="uml:LiteralInteger" xmi:id="_dlSRYBJ4Eemcuqnt9noGMA" name="Decision1_To_ActivityFinal1_weight"/>
+    </edge>
+    <edge xmi:type="uml:ControlFlow" xmi:id="_fE0xgBJ4Eemcuqnt9noGMA" target="_WJf1QBJ4Eemcuqnt9noGMA" source="_YAGKgBJ4Eemcuqnt9noGMA">
+      <guard xmi:type="uml:LiteralBoolean" xmi:id="_fE1_oBJ4Eemcuqnt9noGMA" name="Decision1_To_OpaqueAction1_guard" value="true"/>
+      <weight xmi:type="uml:LiteralInteger" xmi:id="_fE2msBJ4Eemcuqnt9noGMA" name="Decision1_To_OpaqueAction1_weight"/>
+    </edge>
+    <node xmi:type="uml:InitialNode" xmi:id="_UKa5cBJ4Eemcuqnt9noGMA" name="Initial1" outgoing="_blOeIBJ4Eemcuqnt9noGMA"/>
+    <node xmi:type="uml:OpaqueAction" xmi:id="_WJf1QBJ4Eemcuqnt9noGMA" name="OpaqueAction1" incoming="_blOeIBJ4Eemcuqnt9noGMA _fE0xgBJ4Eemcuqnt9noGMA" outgoing="_cJwHgBJ4Eemcuqnt9noGMA">
+      <body>// TODO body of OpaqueAction1</body>
+    </node>
+    <node xmi:type="uml:DecisionNode" xmi:id="_YAGKgBJ4Eemcuqnt9noGMA" name="Decision1" incoming="_cJwHgBJ4Eemcuqnt9noGMA" outgoing="_dlRDQBJ4Eemcuqnt9noGMA _fE0xgBJ4Eemcuqnt9noGMA"/>
+    <node xmi:type="uml:ActivityFinalNode" xmi:id="_Z9YWkBJ4Eemcuqnt9noGMA" name="ActivityFinal1" incoming="_dlRDQBJ4Eemcuqnt9noGMA"/>
+  </packagedElement>
+</uml:Model>

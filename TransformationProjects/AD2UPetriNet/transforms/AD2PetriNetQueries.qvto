@@ -1,0 +1,84 @@
+import eDSPNQueries;
+
+modeltype EDSPN "strict" uses eDSPN("http://pdv.cs.tu-berlin.de/TimeNET/schema/eDSPN");
+modeltype UML "strict" uses uml("http://www.eclipse.org/uml2/5.0.0/UML");
+
+library AD2PetriNetQueries(){
+/** Queries **/
+	/* A query is a 'read-only' helper which is not allowed to create or update any objects. 
+	N.B.: Queries only support input parameters, no inout or out parameters.
+	*/
+	query ActivityNode::isAPlaceWhenSource(): Boolean{
+		//Check if returns a transition
+		if(self.oclIsKindOf(ForkNode) or self.oclIsKindOf(JoinNode) or self.oclIsKindOf(DecisionNode) or self.oclIsKindOf(Action) or self.oclIsKindOf(DataStoreNode)){
+		log("PL as source: false");
+			return false;
+		} endif;
+			log("PL as source: true");
+			return true;
+		}
+		
+		//All of the above except decision Node (realized with a Place connected to immediate transitions)
+		query ActivityNode::isAPlaceWhenTarget(): Boolean{
+		//Check if returns a transition
+		if(self.oclIsKindOf(ForkNode) or self.oclIsKindOf(JoinNode) or self.oclIsKindOf(Action) or self.oclIsKindOf(DataStoreNode)){
+			return false;
+		} endif;
+		return true;
+	}
+	
+	helper ActivityNode::resolvePlaceAsSource() : Place{
+		log("Looking for a place for the source element",self);
+		
+		if(self.oclIsKindOf(Pin)){
+			log("Source is a Pin!");
+			var tuple:Tuple(p : Place, a : Arc) := self.resolveone(Tuple(p : Place, a : Arc));
+			return tuple.p;
+		};
+		return self.resolveone(EDSPN::Place);
+	}
+	
+	helper ActivityNode::resolvePlaceAsTarget() : Place{
+		if(self.oclIsKindOf(Pin)){
+			log("Target is a Pin!");
+			var tuple:Tuple(p : Place, a : Arc) := self.resolveone(Tuple(p : Place, a : Arc));
+			return tuple.p;
+		};
+		
+		if(self.oclIsKindOf(DecisionNode)){
+			log("Target is a DecisionNode!");
+			var dec:Tuple(p : Place, trans : List(ImmediateTransition), arcs : List(Arc)) := self.resolveone(Tuple( p : Place, trans : List(ImmediateTransition), arcs : List(Arc)));
+			return dec.p;
+		};
+		return self.resolveone(EDSPN::Place);	
+	}
+	
+	helper ActivityNode::resolveTransitionAsTarget() : Transition{
+		log("Target", self);
+		if(self.oclIsKindOf(Action))
+		{
+			log("Target is an Action!");
+			var tuple:Tuple(d : ExponentialTransition, im: ImmediateTransition,  pl: List(Place), arcs: List(Arc)) := self.resolveone(Tuple(d : ExponentialTransition, im: ImmediateTransition,  pl: List(Place), arcs: List(Arc)));
+			return tuple.im;
+		};
+		return  self.resolveone(EDSPN::Transition);
+	}
+	
+	helper ActivityNode::resolveTransitionAsSource(edge:ActivityEdge) : Transition{
+		log("Source", self);
+		if(self.oclIsKindOf(Action))
+		{
+			log("Source is an Action!");
+			var tuple:Tuple(d : ExponentialTransition, im: ImmediateTransition,  pl: List(Place), arcs: List(Arc)) := self.resolveone(Tuple(d : ExponentialTransition, im: ImmediateTransition,  pl: List(Place), arcs: List(Arc)));
+			return tuple.d;
+		};
+		
+		if(self.oclIsKindOf(DecisionNode))
+		{
+			log("Source is a Decision Node");
+			var dec:Tuple(p : Place, trans : List(ImmediateTransition), arcs : List(Arc)) := self.resolveone(Tuple( p : Place, trans : List(ImmediateTransition), arcs : List(Arc)));
+			return dec.trans->at(getOutgoingIndex(self.oclAsType(DecisionNode), edge.target));
+		};
+		return self.resolveone(EDSPN::Transition);
+	}
+}

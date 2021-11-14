@@ -1,0 +1,64 @@
+modeltype EDSPN "strict" uses eDSPN("http://pdv.cs.tu-berlin.de/TimeNET/schema/eDSPN");
+modeltype UML "strict" uses uml("http://www.eclipse.org/uml2/5.0.0/UML");
+
+library eDSPNQueries(){
+/** Queries **/
+//A query is a 'read-only' helper which is not allowed to create or update any objects.
+	query Activity::getActionByName(action_name:String):Action{
+		//TODO: remove?
+		return self.getOwnedMembers()[Action]->any(a | a.name = action_name);
+	}
+	
+	query SOURCE() : Boolean{
+		return true;
+	}
+	
+	query TARGET() : Boolean{
+		return false;
+	}
+	
+	query Parameter::isInputParameter():Boolean{
+		if(self.direction.oclAsType(Integer) = 0 or self.direction.oclAsType(Integer) = 1) //in or inout cannot be used because are commands for qvto.
+		{
+			log("Parameter is an input parameter", self);
+			return true;
+		}
+		endif;
+		log("Parameter is an output parameter", self);
+		return false;
+	}
+	
+	query Parameter::isOutputParameter():Boolean{
+		if(self.direction.oclAsType(Integer) = 1 or self.direction.oclAsType(Integer) = 2 or self.direction.oclAsType(Integer) = 3) //in or inout or return cannot be used because are commands for qvto.
+		{
+			log("Parameter is an output parameter", self);
+			return true;
+		}
+		endif;
+			log("Parameter is an input parameter", self);
+		return false;
+	}
+	
+	query ActivityParameterNode::isInputPar(): Boolean{
+		//As checked in the fUML. If it does not have incoming edges is an input parameter.
+		if(self.incoming->size() = 0)
+		{
+			return true;
+		}
+		endif;
+		return false;
+	}
+	
+	query getOutgoingIndex(d:DecisionNode, e:ActivityNode):Integer{
+	 var i := 1;
+	 d.outgoing->asOrderedSet()->sortedBy(target.name)->forEach(edge){
+	 if(e = edge.target){
+		return i;
+	 };
+	 i := i+1;
+	 };
+	 //d.outgoing.forEach(edge:ActivityEdge){	}
+	 assert fatal(false) with log("Cannot find Decision node outgoing edge leading to the ActivityNode", e);
+		 return -1;
+	}
+}
